@@ -1,0 +1,102 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# C extensions
+*.so
+
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual environments
+venv/
+.venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+
+# Environment variables & secrets
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+*.cert
+*.crt
+*.p12
+*.jks
+
+# Biometric & proprietary data (Strict rule: NEVER commit biometric data)
+data/
+*.jpg
+*.jpeg
+*.png
+*.webp
+*.bmp
+*.npy
+*.npz
+*.bin
+*.onnx
+*.tflite
+*.pt
+*.pth
+*.faiss
+*.index
+*.db
+*.sqlite
+*.sqlite3
+
+# IDE / Editor files
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS generated files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Android build outputs & local config
+android/.gradle/
+android/build/
+android/*/build/
+android/local.properties
+android/captures/
+android/.externalNativeBuild/
+android/.cxx/
+
+# Test coverage & logs
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+.pytest_cache/
+logs/
+*.log
