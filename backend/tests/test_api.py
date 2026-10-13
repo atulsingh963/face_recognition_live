@@ -6,6 +6,15 @@ from app.auth.sessions import challenge_session_manager
 client = TestClient(app)
 
 
+def test_root():
+    response = client.get("/")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["service"] == "Face Recognition & Liveness API"
+    assert data["health_live_url"] == "/health/live"
+    assert data["health_ready_url"] == "/health/ready"
+
+
 def test_health_live():
     response = client.get("/health/live")
     assert response.status_code == 200

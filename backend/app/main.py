@@ -19,6 +19,23 @@ app = FastAPI(
 )
 
 
+class RootResponse(BaseModel):
+    service: str
+    docs_url: str | None
+    health_live_url: str
+    health_ready_url: str
+
+
+@app.get("/", response_model=RootResponse)
+def root():
+    return RootResponse(
+        service=app.title,
+        docs_url="/docs" if settings.DEBUG else None,
+        health_live_url="/health/live",
+        health_ready_url="/health/ready",
+    )
+
+
 class HealthResponse(BaseModel):
     status: str
     environment: str
