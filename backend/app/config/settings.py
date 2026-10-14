@@ -35,14 +35,16 @@ class Settings(BaseSettings):
     CHALLENGE_SESSION_EXPIRE_SECONDS: int = 60
 
     # Models & Approvals
-    PAD_MODEL_PATH: str = "models/pad/minifasnet.onnx"
+    PAD_MODEL_PATH: str = "models/pad/minifasnet_v2.onnx"
     PAD_MODEL_APPROVED: bool = False
     PAD_SCORE_THRESHOLD: float = 0.90
 
-    EMBEDDING_MODEL_PATH: str = "models/embedding/model.onnx"
+    EMBEDDING_MODEL_PATH: str = "models/embedding/arcfaceresnet100-8.onnx"
     EMBEDDING_MODEL_APPROVED: bool = False
     EMBEDDING_DIMENSION: int = 512
     MATCH_SIMILARITY_THRESHOLD: float = 0.65
+
+    DETECTOR_MODEL_PATH: str = "models/detector/face_detection_yunet_2023mar.onnx"
 
     # Storage
     DATABASE_URL: str = "sqlite:///./face_rec.db"
