@@ -26,11 +26,22 @@ export interface HealthResponse {
   environment: string;
 }
 
+export interface ModelReadinessDetail {
+  configured_path: string;
+  file_exists: boolean;
+  approved: boolean;
+  loaded: boolean;
+  reason?: string | null;
+}
+
 export interface ReadinessResponse {
   status: 'ready' | 'not_ready' | string;
   pad_model_approved: boolean;
   embedding_model_approved: boolean;
   ready_for_inference: boolean;
+  pad_model?: ModelReadinessDetail | null;
+  embedding_model?: ModelReadinessDetail | null;
+  providers?: string[];
 }
 
 export interface ChallengeSessionCreateResponse {
