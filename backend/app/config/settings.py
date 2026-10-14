@@ -25,6 +25,8 @@ class Settings(BaseSettings):
     CORS_ORIGINS: list[str] = [
         "http://127.0.0.1:5173",
         "http://localhost:5173",
+        "https://ride-volvo-hughes-desirable.trycloudflare.com",
+        "https://islamic-coordinator-configured-eagles.trycloudflare.com",
     ]
 
     # Auth & Tokens
