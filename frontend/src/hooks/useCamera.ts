@@ -28,7 +28,14 @@ export function useCamera(): UseCameraReturn {
     hasMediaDevices ? 'prompt' : 'unsupported'
   );
 
+  const playPromiseRef = useRef<Promise<void> | null>(null);
+  const startOperationIdRef = useRef<number>(0);
+
   const stopCamera = useCallback(() => {
+    // Invalidate any ongoing start operation
+    startOperationIdRef.current += 1;
+    playPromiseRef.current = null;
+
     if (streamRef.current) {
       streamRef.current.getTracks().forEach((track) => {
         track.stop();
@@ -50,15 +57,20 @@ export function useCamera(): UseCameraReturn {
       return;
     }
 
+    const currentOpId = ++startOperationIdRef.current;
     setIsLoading(true);
     setError(null);
 
-    try {
-      // First clean up any existing stream
-      if (streamRef.current) {
-        streamRef.current.getTracks().forEach((t) => t.stop());
-      }
+    // Clean up any existing stream before starting a new one
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((t) => t.stop());
+      streamRef.current = null;
+    }
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
+    }
 
+    try {
       const mediaStream = await navigator.mediaDevices.getUserMedia({
         video: {
           width: { ideal: 640 },
@@ -68,20 +80,60 @@ export function useCamera(): UseCameraReturn {
         audio: false,
       });
 
+      // If a newer start or stop operation occurred while waiting for getUserMedia, discard this stream
+      if (currentOpId !== startOperationIdRef.current) {
+        mediaStream.getTracks().forEach((t) => t.stop());
+        return;
+      }
+
       streamRef.current = mediaStream;
       setStream(mediaStream);
       setPermissionState('granted');
       setIsActive(true);
 
-      if (videoRef.current) {
-        videoRef.current.srcObject = mediaStream;
-        await videoRef.current.play().catch((playErr) => {
+      const video = videoRef.current;
+      if (video) {
+        video.srcObject = mediaStream;
+
+        // Prevent overlapping play calls
+        if (playPromiseRef.current) {
+          try {
+            await playPromiseRef.current;
+          } catch {
+            // Ignore previous play interruption
+          }
+        }
+
+        if (currentOpId !== startOperationIdRef.current) {
+          return;
+        }
+
+        try {
+          const promise = video.play();
+          playPromiseRef.current = promise;
+          await promise;
+        } catch (playErr: unknown) {
+          // Gracefully ignore AbortError caused by rapid play/pause, cleanup, or source replacement
+          if (playErr instanceof DOMException && playErr.name === 'AbortError') {
+            return;
+          }
           console.warn('Video play error:', playErr);
-        });
+        } finally {
+          if (playPromiseRef.current) {
+            playPromiseRef.current = null;
+          }
+        }
       }
     } catch (err: unknown) {
+      if (currentOpId !== startOperationIdRef.current) {
+        return;
+      }
       stopCamera();
       if (err instanceof DOMException) {
+        if (err.name === 'AbortError') {
+          // Expected cancellation / interruption; do not surface as failure
+          return;
+        }
         if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
           setPermissionState('denied');
           setError('Camera permission was denied. Please allow camera access in browser settings.');
@@ -96,7 +148,9 @@ export function useCamera(): UseCameraReturn {
         setError(err instanceof Error ? err.message : 'Unknown camera initialization error');
       }
     } finally {
-      setIsLoading(false);
+      if (currentOpId === startOperationIdRef.current) {
+        setIsLoading(false);
+      }
     }
   }, [stopCamera]);
 
@@ -128,9 +182,16 @@ export function useCamera(): UseCameraReturn {
 
   // Clean up on component unmount
   useEffect(() => {
+    const video = videoRef.current;
     return () => {
+      startOperationIdRef.current += 1;
+      playPromiseRef.current = null;
       if (streamRef.current) {
         streamRef.current.getTracks().forEach((track) => track.stop());
+        streamRef.current = null;
+      }
+      if (video) {
+        video.srcObject = null;
       }
     };
   }, []);
