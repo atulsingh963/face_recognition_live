@@ -22,6 +22,10 @@ class Settings(BaseSettings):
     PORT: int = 8000
     DEBUG: bool = False
     ENVIRONMENT: EnvironmentType = EnvironmentType.DEVELOPMENT
+    CORS_ORIGINS: list[str] = [
+        "http://127.0.0.1:5173",
+        "http://localhost:5173",
+    ]
 
     # Auth & Tokens
     SECRET_KEY: str = "insecure_dev_key_must_be_changed_in_env_file"
