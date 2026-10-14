@@ -43,28 +43,23 @@ export const ChallengePanel: React.FC<ChallengePanelProps> = ({
   isSubmitting = false,
   capturedFramesCount,
 }) => {
-  const [secondsRemaining, setSecondsRemaining] = useState<number>(0);
+  const [now, setNow] = useState(() => Date.now());
 
   useEffect(() => {
-    if (!session) {
-      setSecondsRemaining(0);
-      return;
-    }
+    if (!session) return;
 
-    setSecondsRemaining(session.expires_in_seconds);
     const interval = setInterval(() => {
-      setSecondsRemaining((prev) => {
-        if (prev <= 1) {
-          clearInterval(interval);
-          return 0;
-        }
-        return prev - 1;
-      });
+      setNow(Date.now());
     }, 1000);
 
     return () => clearInterval(interval);
   }, [session]);
 
+  const createdAt = session?.created_at ?? 0;
+  const elapsedSeconds = createdAt > 0 ? (now - createdAt) / 1000 : 0;
+  const secondsRemaining = session
+    ? Math.max(0, Math.ceil(session.expires_in_seconds - elapsedSeconds))
+    : 0;
   const isExpired = session !== null && secondsRemaining === 0;
 
   return (

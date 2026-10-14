@@ -17,19 +17,16 @@ interface UseCameraReturn {
 export function useCamera(): UseCameraReturn {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  const hasMediaDevices = typeof navigator !== 'undefined' && Boolean(navigator.mediaDevices?.getUserMedia);
   const [stream, setStream] = useState<MediaStream | null>(null);
   const [isActive, setIsActive] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(false);
-  const [error, setError] = useState<string | null>(null);
-  const [permissionState, setPermissionState] = useState<CameraPermissionState>('prompt');
-
-  // Check initial browser capability
-  useEffect(() => {
-    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-      setPermissionState('unsupported');
-      setError('MediaDevices API is not supported in this browser.');
-    }
-  }, []);
+  const [error, setError] = useState<string | null>(() =>
+    hasMediaDevices ? null : 'MediaDevices API is not supported in this browser.'
+  );
+  const [permissionState, setPermissionState] = useState<CameraPermissionState>(() =>
+    hasMediaDevices ? 'prompt' : 'unsupported'
+  );
 
   const stopCamera = useCallback(() => {
     if (streamRef.current) {

@@ -38,6 +38,7 @@ export interface ChallengeSessionCreateResponse {
   actions: LivenessAction[];
   expires_in_seconds: number;
   server_nonce: string;
+  created_at?: number;
 }
 
 export interface DecisionResponse {

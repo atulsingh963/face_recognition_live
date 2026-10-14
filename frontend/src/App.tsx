@@ -51,11 +51,22 @@ export function App() {
 
   // Poll status on initial load and periodically (every 15 seconds)
   useEffect(() => {
-    checkBackendStatus();
+    let isMounted = true;
+    const runCheck = async () => {
+      if (isMounted) {
+        await checkBackendStatus();
+      }
+    };
+    void runCheck();
+
     const interval = setInterval(() => {
-      checkBackendStatus();
+      void runCheck();
     }, 15000);
-    return () => clearInterval(interval);
+
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
   }, [checkBackendStatus]);
 
   return (

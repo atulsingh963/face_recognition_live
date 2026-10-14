@@ -43,7 +43,10 @@ export const VerificationPage: React.FC<VerificationPageProps> = ({ systemStatus
 
     try {
       const res = await createLivenessSession();
-      setSession(res);
+      setSession({
+        ...res,
+        created_at: Date.now(),
+      });
     } catch (err: unknown) {
       if (err instanceof ApiError) {
         setErrorMessage(`Failed to create challenge session: ${err.message}`);
