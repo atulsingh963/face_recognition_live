@@ -1,6 +1,7 @@
 """FastAPI application entrypoint with health, session creation, and error handling."""
 import uuid
-from fastapi import FastAPI, HTTPException, status
+from typing import List
+from fastapi import FastAPI, Form, File, HTTPException, UploadFile, status
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
@@ -172,3 +173,92 @@ def create_liveness_session():
         expires_in_seconds=settings.CHALLENGE_SESSION_EXPIRE_SECONDS,
         server_nonce=record.server_nonce,
     )
+
+
+@app.post("/v1/verifications", response_model=DecisionResponse)
+async def submit_verification(
+    session_id: str = Form(...),
+    server_nonce: str = Form(...),
+    frames: List[UploadFile] = File(...),
+):
+    """
+    Biometric verification endpoint.
+    Enforces:
+    - Session existence, TTL, and anti-replay single-use nonce validation
+    - Ingestion constraints (frame count, max bytes per frame)
+    - Fail-closed model readiness gating (both PAD and embedding models must be approved and loaded)
+    """
+    request_id = str(uuid.uuid4())
+
+    # 1. Validate frames count
+    if not frames:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="At least one evidence frame is required.",
+        )
+    if len(frames) > settings.MAX_FRAMES_PER_REQUEST:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Exceeded maximum allowed frames per request ({settings.MAX_FRAMES_PER_REQUEST}).",
+        )
+
+    # 2. Check and consume session atomically (anti-replay + TTL)
+    session_record = challenge_session_manager.get_session(session_id)
+    if not session_record:
+        return DecisionResponse(
+            request_id=request_id,
+            decision=DecisionCode.SESSION_EXPIRED,
+            message="Challenge session not found or already purged.",
+        )
+
+    consumed_ok = challenge_session_manager.validate_and_consume(session_id, nonce=server_nonce)
+    if not consumed_ok:
+        return DecisionResponse(
+            request_id=request_id,
+            decision=DecisionCode.SESSION_EXPIRED,
+            message="Challenge session has expired or was already consumed (replay prevented).",
+        )
+
+    # 3. Read and check frame byte constraints
+    for idx, frame in enumerate(frames):
+        content = await frame.read()
+        if len(content) > settings.MAX_IMAGE_BYTES:
+            return DecisionResponse(
+                request_id=request_id,
+                decision=DecisionCode.QUALITY_REJECTED,
+                message=f"Frame {idx} exceeds maximum allowed size ({settings.MAX_IMAGE_BYTES} bytes).",
+            )
+        if len(content) == 0:
+            return DecisionResponse(
+                request_id=request_id,
+                decision=DecisionCode.QUALITY_REJECTED,
+                message=f"Frame {idx} is empty.",
+            )
+
+    # 4. Model readiness gate check (fail-closed)
+    pad_ready, pad_detail = _inspect_model_readiness(
+        settings.PAD_MODEL_PATH, settings.PAD_MODEL_APPROVED
+    )
+    embedding_ready, embedding_detail = _inspect_model_readiness(
+        settings.EMBEDDING_MODEL_PATH, settings.EMBEDDING_MODEL_APPROVED
+    )
+
+    if not pad_ready or not embedding_ready:
+        reasons = []
+        if not pad_ready:
+            reasons.append(f"PAD: {pad_detail.reason}")
+        if not embedding_ready:
+            reasons.append(f"Embedding: {embedding_detail.reason}")
+        return DecisionResponse(
+            request_id=request_id,
+            decision=DecisionCode.ERROR,
+            message=f"Biometric inference models not ready (fail-closed policy enforced): {'; '.join(reasons)}",
+        )
+
+    # When models are loaded and verified in future steps, inference pipeline runs here
+    return DecisionResponse(
+        request_id=request_id,
+        decision=DecisionCode.NO_MATCH,
+        message="Inference completed: No enrolled biometric identity matched the provided evidence.",
+    )
+

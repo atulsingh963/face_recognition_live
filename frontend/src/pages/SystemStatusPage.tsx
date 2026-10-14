@@ -49,8 +49,12 @@ export const SystemStatusPage: React.FC<SystemStatusPageProps> = ({
       method: 'POST',
       path: '/v1/verifications',
       description: 'Evidence submission, PAD analysis, and face embedding matching',
-      status: 'Pending Implementation',
-      code: 'Not Registered',
+      status: !isOnline
+        ? 'Unreachable'
+        : status.readiness?.ready_for_inference
+        ? 'Ready for Inference'
+        : 'Active (Fail-Closed Gate Enforced)',
+      code: isOnline ? '200 OK' : 'Unavailable',
     },
   ];
 
