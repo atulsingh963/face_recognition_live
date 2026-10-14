@@ -71,6 +71,10 @@ data/
 *.swp
 *.swo
 
+# Node / Frontend
+node_modules/
+frontend/dist/
+
 # OS generated files
 .DS_Store
 Thumbs.db
