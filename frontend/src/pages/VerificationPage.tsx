@@ -29,11 +29,16 @@ export const VerificationPage: React.FC<VerificationPageProps> = ({ systemStatus
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   // Stop camera when unmounting verification page
+  const stopCameraRef = React.useRef(camera.stopCamera);
+  useEffect(() => {
+    stopCameraRef.current = camera.stopCamera;
+  }, [camera.stopCamera]);
+
   useEffect(() => {
     return () => {
-      camera.stopCamera();
+      stopCameraRef.current();
     };
-  }, [camera]);
+  }, []);
 
   const handleStartSession = useCallback(async () => {
     setIsLoadingSession(true);
