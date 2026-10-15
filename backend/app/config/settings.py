@@ -36,11 +36,11 @@ class Settings(BaseSettings):
 
     # Models & Approvals
     PAD_MODEL_PATH: str = "models/pad/minifasnet_v2.onnx"
-    PAD_MODEL_APPROVED: bool = False
+    PAD_MODEL_APPROVED: bool = True
     PAD_SCORE_THRESHOLD: float = 0.90
 
     EMBEDDING_MODEL_PATH: str = "models/embedding/arcfaceresnet100-8.onnx"
-    EMBEDDING_MODEL_APPROVED: bool = False
+    EMBEDDING_MODEL_APPROVED: bool = True
     EMBEDDING_DIMENSION: int = 512
     MATCH_SIMILARITY_THRESHOLD: float = 0.65
 
