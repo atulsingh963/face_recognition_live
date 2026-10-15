@@ -1,13 +1,18 @@
-cd backend
+for backend
 
-py -m venv .venv
+
+ cd "D:\Projects\face_recognition_live\backend"
+
 .\.venv\Scripts\Activate.ps1
 
 python -m pip install -e .
+
 python -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
  
  and for frontend 
- cd frontend
- npm install for installing node modules
- npm run dev 
- 
+
+ cd "D:\Projects\face_recognition_live\frontend"
+
+npm install
+
+npm run dev -- --host 127.0.0.1
