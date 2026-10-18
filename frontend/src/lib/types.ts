@@ -109,3 +109,45 @@ export interface BackendSystemStatus {
   lastChecked: Date | null;
   errorMessage: string | null;
 }
+
+export interface StudentProfile {
+  id: number;
+  roll_number: string;
+  first_name: string;
+  last_name: string;
+  is_enrolled: boolean;
+  is_active: boolean;
+  created_at: string;
+}
+
+export interface TokenResponse {
+  access_token: string;
+  token_type: string;
+  expires_in_minutes: number;
+  roll_number: string;
+  first_name: string;
+  last_name: string;
+  is_enrolled: boolean;
+}
+
+export interface BiometricEnrollmentResponse {
+  success: boolean;
+  message: string;
+  is_enrolled: boolean;
+  sample_quality_score: number;
+}
+
+export interface AttendanceRecord {
+  id: number;
+  timestamp: string;
+  status: string;
+  similarity_score: number;
+  liveness_score: number;
+  device_info?: string | null;
+}
+
+export interface AttendanceHistoryResponse {
+  total_records: number;
+  records: AttendanceRecord[];
+}
+

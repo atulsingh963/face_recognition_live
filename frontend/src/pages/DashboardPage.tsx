@@ -1,16 +1,20 @@
 import React from 'react';
-import type { BackendSystemStatus } from '../lib/types';
+import type { BackendSystemStatus, StudentProfile } from '../lib/types';
 import { StatusCard } from '../components/StatusCard';
 
 interface DashboardPageProps {
   status: BackendSystemStatus;
+  student: StudentProfile | null;
   onNavigateToVerification: () => void;
+  onNavigateToEnrollment: () => void;
   onRefresh: () => void;
 }
 
 export const DashboardPage: React.FC<DashboardPageProps> = ({
   status,
+  student,
   onNavigateToVerification,
+  onNavigateToEnrollment,
   onRefresh,
 }) => {
   const isOnline = status.connection === 'connected';
@@ -20,28 +24,26 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
     <div>
       <div style={{ marginBottom: '1.5rem' }}>
         <h2 style={{ fontSize: '1.5rem', fontWeight: 700, letterSpacing: '-0.02em', color: 'var(--text-primary)' }}>
-          System Overview
+          Student Dashboard
         </h2>
         <p style={{ color: 'var(--text-secondary)', marginTop: '0.25rem' }}>
-          Operational status of the Face Recognition & Challenge-Based Liveness Inference Backend.
+          Welcome back, {student ? `${student.first_name} ${student.last_name}` : 'Student'}.
         </p>
       </div>
 
       <div className="card-grid">
         <StatusCard
-          title="Backend Connectivity"
-          value={isOnline ? 'Online' : status.connection === 'checking' ? 'Connecting...' : 'Disconnected'}
+          title="Student Status"
+          value={student ? student.roll_number : 'Not Logged In'}
           statusBadge={
-            isOnline
-              ? { text: '200 OK', variant: 'live' }
-              : { text: status.connection === 'checking' ? 'CHECKING' : 'OFFLINE', variant: 'offline' }
+            student?.is_enrolled
+              ? { text: 'ENROLLED', variant: 'ready' }
+              : { text: 'UNENROLLED', variant: 'not_ready' }
           }
           description={
-            status.root?.service
-              ? `${status.root.service}`
-              : isOnline
-              ? 'FastAPI core running'
-              : 'Could not reach local FastAPI server on 127.0.0.1:8000'
+            student?.is_enrolled
+              ? 'Biometric face template is enrolled and ready for attendance'
+              : 'Face not enrolled. Complete camera enrollment to mark attendance.'
           }
         />
 
@@ -55,49 +57,60 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
           }
           description={
             isReady
-              ? 'All biometric models validated and ready for inference'
-              : 'Model weights are unapproved or pending cryptographic clearance'
+              ? 'YuNet, MiniFASNet-V2, and ArcFace ONNX models initialized'
+              : 'Biometric inference models not loaded'
           }
         />
 
         <StatusCard
-          title="PAD Model (MinFASNet)"
-          value={status.readiness?.pad_model_approved ? 'Approved' : 'Unapproved'}
+          title="Backend Connectivity"
+          value={isOnline ? 'Online' : status.connection === 'checking' ? 'Connecting...' : 'Disconnected'}
           statusBadge={
-            status.readiness?.pad_model_approved
-              ? { text: 'APPROVED', variant: 'ready' }
-              : { text: 'UNAPPROVED', variant: 'not_ready' }
+            isOnline
+              ? { text: '200 OK', variant: 'live' }
+              : { text: status.connection === 'checking' ? 'CHECKING' : 'OFFLINE', variant: 'offline' }
           }
-          description="Presentation Attack Detection gate status (Silent Spoof Rejection)"
+          description={
+            isOnline ? 'Local FastAPI service reachable' : 'FastAPI offline at 127.0.0.1:8000'
+          }
         />
 
         <StatusCard
-          title="Embedding Model"
-          value={status.readiness?.embedding_model_approved ? 'Approved' : 'Unapproved'}
-          statusBadge={
-            status.readiness?.embedding_model_approved
-              ? { text: 'APPROVED', variant: 'ready' }
-              : { text: 'UNAPPROVED', variant: 'not_ready' }
-          }
-          description="Face feature vector extraction (512-d normalized cosine embeddings)"
+          title="Local Privacy Store"
+          value="SQLite (Active)"
+          statusBadge={{ text: 'OFFLINE/LOCAL', variant: 'live' }}
+          description="Storage path: local_data/attendance.db (zero cloud transmission)"
         />
       </div>
 
       <div className="card" style={{ marginBottom: '1.5rem' }}>
         <div className="card-title">
-          <span>Security & Architectural Status</span>
+          <span>Student Attendance Workflow</span>
         </div>
-        <p style={{ color: 'var(--text-secondary)', marginBottom: '0.75rem', lineHeight: 1.6 }}>
-          This web frontend serves as a local development, diagnostic, and manual verification console. The authoritative production client architecture remains the <strong>Android mobile client</strong> connected to the FastAPI control/inference planes.
+        <p style={{ color: 'var(--text-secondary)', marginBottom: '1rem', lineHeight: 1.6 }}>
+          {student?.is_enrolled
+            ? 'Your face template is active. Click below to start the live attendance verification session with anti-spoofing challenge response.'
+            : 'You have not enrolled your face yet. Click "Enroll Face Template" to complete initial registration using the local camera.'}
         </p>
         <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
-          <button
-            type="button"
-            className="btn btn-primary"
-            onClick={onNavigateToVerification}
-          >
-            Launch Live Verification Console &rarr;
-          </button>
+          {student?.is_enrolled ? (
+            <button
+              type="button"
+              className="btn btn-primary"
+              onClick={onNavigateToVerification}
+            >
+              Mark Live Attendance &rarr;
+            </button>
+          ) : (
+            <button
+              type="button"
+              className="btn btn-primary"
+              onClick={onNavigateToEnrollment}
+            >
+              Enroll Face Template &rarr;
+            </button>
+          )}
+
           <button
             type="button"
             className="btn btn-secondary"
@@ -110,7 +123,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
 
       <div className="card">
         <div className="card-title">
-          <span>Environment & Endpoints</span>
+          <span>Environment & Configuration</span>
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem', fontSize: '0.85rem' }}>
           <div>
@@ -118,25 +131,12 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
             <div style={{ fontFamily: 'var(--font-mono)', marginTop: '0.2rem' }}>http://127.0.0.1:8000</div>
           </div>
           <div>
-            <span style={{ color: 'var(--text-muted)' }}>Environment:</span>
-            <div style={{ textTransform: 'capitalize', marginTop: '0.2rem' }}>{status.health?.environment || 'Unknown'}</div>
+            <span style={{ color: 'var(--text-muted)' }}>Roll Number Format:</span>
+            <div style={{ fontFamily: 'var(--font-mono)', marginTop: '0.2rem' }}>^[A-Za-z0-9_-]&#123;5,20&#125;$</div>
           </div>
           <div>
-            <span style={{ color: 'var(--text-muted)' }}>Interactive API Docs:</span>
-            <div style={{ marginTop: '0.2rem' }}>
-              {status.root?.docs_url ? (
-                <a
-                  href={`http://127.0.0.1:8000${status.root.docs_url}`}
-                  target="_blank"
-                  rel="noreferrer"
-                  style={{ color: 'var(--accent-blue)', textDecoration: 'none' }}
-                >
-                  Swagger UI ({status.root.docs_url})
-                </a>
-              ) : (
-                <span style={{ color: 'var(--text-muted)' }}>Disabled in non-debug mode</span>
-              )}
-            </div>
+            <span style={{ color: 'var(--text-muted)' }}>Biometric Algorithm:</span>
+            <div style={{ marginTop: '0.2rem' }}>YuNet + MiniFASNet-V2 + ArcFace 512D</div>
           </div>
         </div>
       </div>

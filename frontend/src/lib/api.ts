@@ -144,3 +144,119 @@ export async function analyzeLiveFrame(frame: Blob): Promise<LiveFrameAnalysisRe
     body: formData,
   }, 3000);
 }
+
+// Token management in localStorage
+const TOKEN_KEY = 'fr_auth_token';
+
+export function getStoredToken(): string | null {
+  return localStorage.getItem(TOKEN_KEY);
+}
+
+export function setStoredToken(token: string): void {
+  localStorage.setItem(TOKEN_KEY, token);
+}
+
+export function clearStoredToken(): void {
+  localStorage.removeItem(TOKEN_KEY);
+}
+
+function authHeaders(): HeadersInit {
+  const token = getStoredToken();
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
+/**
+ * Register student account (POST /v1/auth/register)
+ */
+export async function registerStudent(payload: {
+  first_name: string;
+  last_name: string;
+  roll_number: string;
+  password: string;
+  confirm_password: string;
+}) {
+  return request<import('./types').StudentProfile>('/v1/auth/register', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+}
+
+/**
+ * Login student account (POST /v1/auth/login)
+ */
+export async function loginStudent(payload: { roll_number: string; password: string }) {
+  const data = await request<import('./types').TokenResponse>('/v1/auth/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  if (data?.access_token) {
+    setStoredToken(data.access_token);
+  }
+  return data;
+}
+
+/**
+ * Fetch authenticated student profile (GET /v1/auth/me)
+ */
+export async function fetchCurrentStudent() {
+  return request<import('./types').StudentProfile>('/v1/auth/me', {
+    headers: authHeaders(),
+  });
+}
+
+/**
+ * Enroll student biometric template (POST /v1/enrollment)
+ */
+export async function enrollFaceTemplate(consent: boolean, frames: Blob[]) {
+  const formData = new FormData();
+  formData.append('consent', String(consent));
+  frames.forEach((frame, idx) => {
+    formData.append('frames', frame, `enroll_frame_${idx}.jpg`);
+  });
+
+  return request<import('./types').BiometricEnrollmentResponse>('/v1/enrollment', {
+    method: 'POST',
+    headers: authHeaders(),
+    body: formData,
+  }, 15000);
+}
+
+/**
+ * Delete / revoke enrolled biometric template (DELETE /v1/enrollment)
+ */
+export async function revokeBiometricTemplate() {
+  return request<import('./types').BiometricEnrollmentResponse>('/v1/enrollment', {
+    method: 'DELETE',
+    headers: authHeaders(),
+  });
+}
+
+/**
+ * Submit attendance verification evidence for authenticated student (POST /v1/attendance/verify)
+ */
+export async function verifyAttendance(sessionId: string, nonce: string, frames: Blob[]) {
+  const formData = new FormData();
+  formData.append('session_id', sessionId);
+  formData.append('server_nonce', nonce);
+  frames.forEach((frame, idx) => {
+    formData.append('frames', frame, `att_frame_${idx}.jpg`);
+  });
+
+  return request<DecisionResponse>('/v1/attendance/verify', {
+    method: 'POST',
+    headers: authHeaders(),
+    body: formData,
+  }, 15000);
+}
+
+/**
+ * Fetch student attendance history (GET /v1/attendance/history)
+ */
+export async function fetchAttendanceHistory() {
+  return request<import('./types').AttendanceHistoryResponse>('/v1/attendance/history', {
+    headers: authHeaders(),
+  });
+}
+

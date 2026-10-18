@@ -5,7 +5,7 @@ import { ChallengePanel } from '../components/ChallengePanel';
 import { ResultPanel } from '../components/ResultPanel';
 import {
   createLivenessSession,
-  submitVerificationEvidence,
+  verifyAttendance,
   analyzeLiveFrame,
   ApiError,
 } from '../lib/api';
@@ -14,13 +14,20 @@ import type {
   DecisionResponse,
   BackendSystemStatus,
   LiveFrameAnalysisResponse,
+  StudentProfile,
 } from '../lib/types';
 
 interface VerificationPageProps {
   systemStatus: BackendSystemStatus;
+  student?: StudentProfile | null;
+  onNavigateToEnrollment?: () => void;
 }
 
-export const VerificationPage: React.FC<VerificationPageProps> = ({ systemStatus }) => {
+export const VerificationPage: React.FC<VerificationPageProps> = ({
+  systemStatus,
+  student,
+  onNavigateToEnrollment,
+}) => {
   const camera = useCamera();
   const [session, setSession] = useState<ChallengeSessionCreateResponse | null>(null);
   const [isLoadingSession, setIsLoadingSession] = useState(false);
@@ -71,14 +78,13 @@ export const VerificationPage: React.FC<VerificationPageProps> = ({ systemStatus
           }
         }
       } catch (err: unknown) {
-        // Suppress transient streaming drops quietly in background
         if (import.meta.env.DEV) {
           console.debug('Live frame analysis tick error:', err);
         }
       } finally {
         isAnalyzingRef.current = false;
       }
-    }, 400); // 2.5 FPS real-time feedback loop
+    }, 400);
 
     return () => {
       isSubscribed = false;
@@ -144,7 +150,7 @@ export const VerificationPage: React.FC<VerificationPageProps> = ({ systemStatus
     setLastDecision(null);
 
     try {
-      const result = await submitVerificationEvidence(
+      const result = await verifyAttendance(
         session.session_id,
         session.server_nonce,
         capturedFrames
@@ -169,10 +175,12 @@ export const VerificationPage: React.FC<VerificationPageProps> = ({ systemStatus
     <div>
       <div style={{ marginBottom: '1.5rem' }}>
         <h2 style={{ fontSize: '1.5rem', fontWeight: 700, letterSpacing: '-0.02em', color: 'var(--text-primary)' }}>
-          Live Verification Console
+          Attendance Verification Console
         </h2>
         <p style={{ color: 'var(--text-secondary)', marginTop: '0.25rem' }}>
-          Interactive challenge-response liveness verification with real-time YuNet detection, MiniFASNet PAD, and ArcFace biometric evaluation.
+          {student
+            ? `Marking official attendance for ${student.first_name} ${student.last_name} (${student.roll_number}) with server-controlled liveness challenges.`
+            : 'Interactive challenge-response liveness verification and identity matching.'}
         </p>
       </div>
 
@@ -181,6 +189,24 @@ export const VerificationPage: React.FC<VerificationPageProps> = ({ systemStatus
           <span>
             <strong>Backend Unreachable:</strong> The backend is currently offline. Start the FastAPI server on 127.0.0.1:8000 to enable real-time inference and challenge sessions.
           </span>
+        </div>
+      )}
+
+      {student && !student.is_enrolled && (
+        <div className="alert alert-error" style={{ marginBottom: '1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <span>
+            <strong>Face Enrollment Required:</strong> You must complete biometric face enrollment before attendance can be marked.
+          </span>
+          {onNavigateToEnrollment && (
+            <button
+              type="button"
+              className="btn btn-primary"
+              style={{ padding: '0.35rem 0.75rem', fontSize: '0.8rem' }}
+              onClick={onNavigateToEnrollment}
+            >
+              Go to Face Enrollment &rarr;
+            </button>
+          )}
         </div>
       )}
 
