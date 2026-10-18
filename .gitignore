@@ -48,6 +48,8 @@ venv.bak/
 
 # Biometric & proprietary data (Strict rule: NEVER commit biometric data)
 data/
+local_data/
+storage/
 *.jpg
 *.jpeg
 *.png

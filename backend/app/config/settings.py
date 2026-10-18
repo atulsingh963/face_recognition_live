@@ -42,10 +42,13 @@ class Settings(BaseSettings):
 
     DETECTOR_MODEL_PATH: str = "models/detector/face_detection_yunet_2023mar.onnx"
 
-    # Storage
-    DATABASE_URL: str = "sqlite:///./face_rec.db"
-    FAISS_INDEX_PATH: str = "./storage/index.faiss"
-    FAISS_MAPPING_PATH: str = "./storage/mapping.json"
+    # Storage & Privacy
+    LOCAL_DATA_DIR: str = "local_data"
+    DATABASE_URL: str = "sqlite:///./local_data/attendance.db"
+
+    # Attendance Policy
+    ATTENDANCE_WINDOW_MINUTES: int = 60  # Minimum minutes between duplicate attendance records for same student
+    ROLL_NUMBER_REGEX: str = r"^[A-Za-z0-9_-]{5,20}$"
 
     # Ingestion constraints
     MAX_IMAGE_BYTES: int = 524288  # 512 KB max raw upload per frame
