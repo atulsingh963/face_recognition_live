@@ -7,7 +7,7 @@ export default defineConfig({
   server: {
     host: '0.0.0.0',
     allowedHosts: [
-      'islamic-coordinator-configured-eagles.trycloudflare.com'
+      'computing-till-jersey-standards.trycloudflare.com'
     ]
   }
 })
