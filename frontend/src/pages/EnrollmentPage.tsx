@@ -39,6 +39,7 @@ export const EnrollmentPage: React.FC<EnrollmentPageProps> = ({
   const [isQualityGood, setIsQualityGood] = useState(false);
 
   const isAnalyzingRef = useRef(false);
+  const isCapturingRef = useRef(false);
   const lastCaptureTimeRef = useRef<number>(0);
   const autoSubmittedRef = useRef<boolean>(false);
   const capturedFramesRef = useRef<Blob[]>([]);
@@ -207,9 +208,11 @@ export const EnrollmentPage: React.FC<EnrollmentPageProps> = ({
     if (
       autoCaptureEnabled &&
       capturedFrames.length < REQUIRED_FRAMES_COUNT &&
+      !isCapturingRef.current &&
       now - lastCaptureTimeRef.current >= COOLDOWN_BETWEEN_CAPTURES_MS
     ) {
       lastCaptureTimeRef.current = now;
+      isCapturingRef.current = true;
       void (async () => {
         try {
           const frameBlob = await camera.captureFrame();
@@ -223,6 +226,8 @@ export const EnrollmentPage: React.FC<EnrollmentPageProps> = ({
           }
         } catch (err) {
           console.debug('Auto-capture frame error:', err);
+        } finally {
+          isCapturingRef.current = false;
         }
       })();
     }
