@@ -34,6 +34,15 @@ export const CameraPanel: React.FC<CameraPanelProps> = ({
   const faces = liveAnalysis?.faces || [];
   const primaryFace = faces.length > 0 ? faces[0] : null;
 
+  const [aspectRatio, setAspectRatio] = React.useState<string>('4 / 3');
+
+  const handleLoadedMetadata = React.useCallback(() => {
+    const video = videoRef.current;
+    if (video && video.videoWidth > 0 && video.videoHeight > 0) {
+      setAspectRatio(`${video.videoWidth} / ${video.videoHeight}`);
+    }
+  }, [videoRef]);
+
   return (
     <div className="card">
       <div className="card-title">
@@ -59,139 +68,166 @@ export const CameraPanel: React.FC<CameraPanelProps> = ({
         </div>
       </div>
 
-      <div className="camera-container">
+      <div className="camera-container" style={{ aspectRatio: isActive ? aspectRatio : '4 / 3' }}>
         <video
           ref={videoRef}
           playsInline
           muted
           autoPlay
+          onLoadedMetadata={handleLoadedMetadata}
           className="camera-video"
           style={{ display: isActive ? 'block' : 'none' }}
         />
 
         {isActive ? (
-          <div className="camera-overlay">
-            {/* Guide oval */}
-            <div
-              className={`face-guide-oval ${primaryFace ? 'active' : ''}`}
-              style={{
-                borderColor: primaryFace
-                  ? primaryFace.pad_outcome === 'REAL'
-                    ? 'var(--accent-emerald)'
-                    : primaryFace.pad_outcome === 'SPOOF'
-                    ? 'var(--accent-rose)'
-                    : 'var(--accent-amber)'
-                  : undefined,
-              }}
-            />
+          <>
+            {/* Guide oval centered layer */}
+            <div className="face-guide-layer">
+              <div
+                className={`face-guide-oval ${primaryFace ? 'active' : ''}`}
+                style={{
+                  borderColor: primaryFace
+                    ? primaryFace.pad_outcome === 'REAL'
+                      ? 'var(--accent-emerald)'
+                      : primaryFace.pad_outcome === 'SPOOF'
+                      ? 'var(--accent-rose)'
+                      : 'var(--accent-amber)'
+                    : undefined,
+                }}
+              />
+            </div>
 
-            {/* Real-time bounding box overlays (mirrored to match video transform) */}
-            {faces.map((f, idx) => {
-              const nb = f.norm_bbox;
-              // Mirror X coordinate because camera video has transform: scaleX(-1)
-              const leftPercent = (1 - (nb.x + nb.width)) * 100;
-              const topPercent = nb.y * 100;
-              const widthPercent = nb.width * 100;
-              const heightPercent = nb.height * 100;
+            {/* Real-time bounding box and landmark overlay layer (mirrored to match video transform) */}
+            <div className="camera-overlay">
+              {faces.map((f, idx) => {
+                const nb = f.norm_bbox;
+                // Mirror X coordinate because camera video has transform: scaleX(-1)
+                const leftPercent = (1 - (nb.x + nb.width)) * 100;
+                const topPercent = nb.y * 100;
+                const widthPercent = nb.width * 100;
+                const heightPercent = nb.height * 100;
 
-              const isReal = f.pad_outcome === 'REAL';
-              const isSpoof = f.pad_outcome === 'SPOOF';
-              const boxColor = isReal
-                ? 'rgba(16, 185, 129, 0.9)'
-                : isSpoof
-                ? 'rgba(239, 68, 68, 0.9)'
-                : 'rgba(59, 130, 246, 0.9)';
-              const bgColor = isReal
-                ? 'rgba(16, 185, 129, 0.15)'
-                : isSpoof
-                ? 'rgba(239, 68, 68, 0.15)'
-                : 'rgba(59, 130, 246, 0.15)';
+                const isReal = f.pad_outcome === 'REAL';
+                const isSpoof = f.pad_outcome === 'SPOOF';
+                const boxColor = isReal
+                  ? 'rgba(16, 185, 129, 0.9)'
+                  : isSpoof
+                  ? 'rgba(239, 68, 68, 0.9)'
+                  : 'rgba(59, 130, 246, 0.9)';
+                const bgColor = isReal
+                  ? 'rgba(16, 185, 129, 0.15)'
+                  : isSpoof
+                  ? 'rgba(239, 68, 68, 0.15)'
+                  : 'rgba(59, 130, 246, 0.15)';
 
-              return (
+                return (
+                  <React.Fragment key={`face-${idx}`}>
+                    {/* Bounding Box */}
+                    <div
+                      style={{
+                        position: 'absolute',
+                        left: `${leftPercent}%`,
+                        top: `${topPercent}%`,
+                        width: `${widthPercent}%`,
+                        height: `${heightPercent}%`,
+                        border: `2px solid ${boxColor}`,
+                        borderRadius: '8px',
+                        backgroundColor: bgColor,
+                        boxShadow: `0 0 10px ${boxColor}`,
+                        pointerEvents: 'none',
+                        transition: 'all 0.08s ease-out',
+                      }}
+                    >
+                      <div
+                        style={{
+                          position: 'absolute',
+                          top: '-24px',
+                          left: '0',
+                          backgroundColor: boxColor,
+                          color: '#fff',
+                          fontSize: '0.65rem',
+                          fontWeight: 700,
+                          padding: '2px 6px',
+                          borderRadius: '4px',
+                          whiteSpace: 'nowrap',
+                          textTransform: 'uppercase',
+                          letterSpacing: '0.04em',
+                        }}
+                      >
+                        Face #{idx + 1} • {f.pad_outcome || 'DET'}{' '}
+                        {f.pad_score !== null && f.pad_score !== undefined
+                          ? `(${(f.pad_score * 100).toFixed(0)}%)`
+                          : ''}
+                      </div>
+                    </div>
+
+                    {/* Landmark points (5 keypoints) */}
+                    {(f.norm_landmarks || []).map((lm, lmIdx) => (
+                      <div
+                        key={`face-${idx}-lm-${lmIdx}`}
+                        style={{
+                          position: 'absolute',
+                          left: `${(1 - lm.x) * 100}%`,
+                          top: `${lm.y * 100}%`,
+                          width: '6px',
+                          height: '6px',
+                          borderRadius: '50%',
+                          backgroundColor: boxColor,
+                          boxShadow: `0 0 6px ${boxColor}`,
+                          transform: 'translate(-50%, -50%)',
+                          pointerEvents: 'none',
+                        }}
+                      />
+                    ))}
+                  </React.Fragment>
+                );
+              })}
+
+              {/* Real-time telemetry badge */}
+              {primaryFace && (
                 <div
-                  key={idx}
                   style={{
                     position: 'absolute',
-                    left: `${leftPercent}%`,
-                    top: `${topPercent}%`,
-                    width: `${widthPercent}%`,
-                    height: `${heightPercent}%`,
-                    border: `2px solid ${boxColor}`,
-                    borderRadius: '8px',
-                    backgroundColor: bgColor,
-                    boxShadow: `0 0 10px ${boxColor}`,
-                    pointerEvents: 'none',
-                    transition: 'all 0.1s ease-out',
+                    bottom: '12px',
+                    left: '50%',
+                    transform: 'translateX(-50%)',
+                    backgroundColor: 'rgba(15, 23, 42, 0.85)',
+                    border: '1px solid rgba(255, 255, 255, 0.1)',
+                    borderRadius: '6px',
+                    padding: '4px 10px',
+                    fontSize: '0.75rem',
+                    display: 'flex',
+                    gap: '1rem',
+                    backdropFilter: 'blur(4px)',
                   }}
                 >
-                  <div
-                    style={{
-                      position: 'absolute',
-                      top: '-24px',
-                      left: '0',
-                      backgroundColor: boxColor,
-                      color: '#fff',
-                      fontSize: '0.65rem',
-                      fontWeight: 700,
-                      padding: '2px 6px',
-                      borderRadius: '4px',
-                      whiteSpace: 'nowrap',
-                      textTransform: 'uppercase',
-                      letterSpacing: '0.04em',
-                    }}
-                  >
-                    Face #{idx + 1} • {f.pad_outcome || 'DET'}{' '}
-                    {f.pad_score !== null && f.pad_score !== undefined
-                      ? `(${(f.pad_score * 100).toFixed(0)}%)`
-                      : ''}
-                  </div>
-                </div>
-              );
-            })}
-
-            {/* Real-time telemetry badge */}
-            {primaryFace && (
-              <div
-                style={{
-                  position: 'absolute',
-                  bottom: '12px',
-                  backgroundColor: 'rgba(15, 23, 42, 0.85)',
-                  border: '1px solid rgba(255, 255, 255, 0.1)',
-                  borderRadius: '6px',
-                  padding: '4px 10px',
-                  fontSize: '0.75rem',
-                  display: 'flex',
-                  gap: '1rem',
-                  backdropFilter: 'blur(4px)',
-                }}
-              >
-                <span>
-                  Confidence:{' '}
-                  <strong>{(primaryFace.score * 100).toFixed(1)}%</strong>
-                </span>
-                <span>
-                  PAD Liveness:{' '}
-                  <strong
-                    style={{
-                      color:
-                        primaryFace.pad_outcome === 'REAL'
-                          ? 'var(--accent-emerald)'
-                          : primaryFace.pad_outcome === 'SPOOF'
-                          ? 'var(--accent-rose)'
-                          : 'var(--accent-amber)',
-                    }}
-                  >
-                    {primaryFace.pad_outcome || 'EVALUATING'}
-                  </strong>
-                </span>
-                {liveAnalysis && (
-                  <span style={{ color: 'var(--text-muted)' }}>
-                    Latency: {liveAnalysis.timestamp_ms.toFixed(0)}ms
+                  <span>
+                    Confidence: <strong>{(primaryFace.score * 100).toFixed(1)}%</strong>
                   </span>
-                )}
-              </div>
-            )}
-          </div>
+                  <span>
+                    PAD Liveness:{' '}
+                    <strong
+                      style={{
+                        color:
+                          primaryFace.pad_outcome === 'REAL'
+                            ? 'var(--accent-emerald)'
+                            : primaryFace.pad_outcome === 'SPOOF'
+                            ? 'var(--accent-rose)'
+                            : 'var(--accent-amber)',
+                      }}
+                    >
+                      {primaryFace.pad_outcome || 'EVALUATING'}
+                    </strong>
+                  </span>
+                  {liveAnalysis && (
+                    <span style={{ color: 'var(--text-muted)' }}>
+                      Latency: {liveAnalysis.timestamp_ms.toFixed(0)}ms
+                    </span>
+                  )}
+                </div>
+              )}
+            </div>
+          </>
         ) : (
           <div className="camera-placeholder">
             <svg

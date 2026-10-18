@@ -79,6 +79,7 @@ class LiveFaceDetection(BaseModel):
     pad_outcome: Optional[PadOutcome] = None
     pad_score: Optional[float] = None
     landmarks: List[LandmarkPoint] = []
+    norm_landmarks: List[LandmarkPoint] = []
 
 
 class LiveFrameAnalysisResponse(BaseModel):

@@ -57,12 +57,15 @@ class ArcFaceEmbeddingProvider:
         if not settings.EMBEDDING_MODEL_APPROVED or self._session is None:
             raise PermissionError("Face embedding model is not approved or not loaded.")
 
-        # ArcFace input shape: 112x112
+        # ArcFace input shape: 112x112, channel order: BGR
         resized = face_crop.resize((112, 112), Image.Resampling.BILINEAR)
         img_arr = np.array(resized, dtype=np.float32)
 
+        # Convert RGB to BGR
+        bgr = img_arr[:, :, ::-1]
+
         # Normalize (data - 127.5) / 128
-        norm_img = (img_arr - 127.5) / 128.0
+        norm_img = (bgr - 127.5) / 128.0
 
         # Transpose HWC -> CHW
         blob = np.transpose(norm_img, (2, 0, 1))[np.newaxis, :, :, :]

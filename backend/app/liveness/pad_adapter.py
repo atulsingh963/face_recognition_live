@@ -13,9 +13,9 @@ from app.domain.models import PadOutcome
 class MiniFASNetPAD:
     """
     Evaluates face crops for presentation attacks (print, screen replay) using MiniFASNet v2.
-    Class 0: Live (Real)
-    Class 1: Print attack
-    Class 2: Replay attack
+    Class 0: Print attack (Spoof)
+    Class 1: Live / Real face
+    Class 2: Replay attack (Spoof)
     """
 
     def __init__(
@@ -53,7 +53,8 @@ class MiniFASNetPAD:
 
     def predict(self, face_crop: Image.Image) -> Tuple[PadOutcome, float]:
         """
-        Takes a PIL face crop, resizes to (80, 80), applies softmax, and determines liveness.
+        Takes a PIL face crop, converts to BGR, normalizes to [0, 1], resizes to (80, 80),
+        runs MiniFASNet, applies softmax, and determines liveness.
         Returns: (PadOutcome, live_confidence_score [0..1])
         """
         if not settings.PAD_MODEL_APPROVED or self._session is None:
@@ -63,8 +64,11 @@ class MiniFASNetPAD:
         resized = face_crop.resize((80, 80), Image.Resampling.BILINEAR)
         img_arr = np.array(resized, dtype=np.float32)
 
-        # Transpose HWC -> CHW
-        blob = np.transpose(img_arr, (2, 0, 1))[np.newaxis, :, :, :]
+        # Convert RGB to BGR and normalize to [0, 1]
+        bgr = img_arr[:, :, ::-1] / 255.0
+
+        # Transpose HWC -> CHW (1, 3, 80, 80)
+        blob = np.transpose(bgr, (2, 0, 1))[np.newaxis, :, :, :]
 
         outputs = self._session.run(None, {"input": blob})[0]
         logits = outputs[0]
@@ -73,8 +77,9 @@ class MiniFASNetPAD:
         exp = np.exp(logits - np.max(logits))
         probs = exp / np.sum(exp)
 
-        # Class 0: Live
-        live_score = float(probs[0])
+        # In Silent-Face-Anti-Spoofing / MiniFASNet:
+        # Index 1 corresponds to genuine/live face; indices 0 and 2 are spoof (print/replay)
+        live_score = float(probs[1])
 
         if live_score >= self.score_threshold:
             outcome = PadOutcome.REAL

@@ -97,7 +97,7 @@ def _resolve_model_path(configured_path: str) -> Path:
 
 
 def _inspect_model_readiness(
-    configured_path: str, is_approved: bool
+    configured_path: str, is_approved: bool, is_singleton_loaded: bool | None = None
 ) -> tuple[bool, ModelReadinessDetail]:
     model_path = _resolve_model_path(configured_path)
     file_exists = model_path.exists() and model_path.is_file()
@@ -120,7 +120,26 @@ def _inspect_model_readiness(
             reason=f"Model weight file does not exist at configured path: {configured_path}",
         )
 
-    # Attempt to verify local ONNX loading if file exists and is approved
+    # Fast path: check already-initialized singleton session status
+    if is_singleton_loaded is not None:
+        if is_singleton_loaded:
+            return True, ModelReadinessDetail(
+                configured_path=configured_path,
+                file_exists=True,
+                approved=True,
+                loaded=True,
+                reason=None,
+            )
+        else:
+            return False, ModelReadinessDetail(
+                configured_path=configured_path,
+                file_exists=True,
+                approved=True,
+                loaded=False,
+                reason="Model session failed to initialize on startup",
+            )
+
+    # Fallback to direct ONNX test load
     try:
         import onnxruntime as ort
 
@@ -153,12 +172,16 @@ def health_live():
 @app.get("/health/ready", response_model=ReadinessResponse)
 def health_ready():
     # Real inspection of each model's approval, physical file existence, and local loadability
-    detector_ready, detector_detail = _inspect_model_readiness(settings.DETECTOR_MODEL_PATH, True)
+    detector_ready, detector_detail = _inspect_model_readiness(
+        settings.DETECTOR_MODEL_PATH, True, detector.is_loaded
+    )
     pad_ready, pad_detail = _inspect_model_readiness(
-        settings.PAD_MODEL_PATH, settings.PAD_MODEL_APPROVED
+        settings.PAD_MODEL_PATH, settings.PAD_MODEL_APPROVED, pad_detector.is_loaded
     )
     embedding_ready, embedding_detail = _inspect_model_readiness(
-        settings.EMBEDDING_MODEL_PATH, settings.EMBEDDING_MODEL_APPROVED
+        settings.EMBEDDING_MODEL_PATH,
+        settings.EMBEDDING_MODEL_APPROVED,
+        embedding_provider.is_loaded,
     )
 
     available_providers: list[str] = []
@@ -228,18 +251,30 @@ async def analyze_live_frame(frame: UploadFile = File(...)):
     # 2. For each face, crop and run MiniFASNet PAD
     for face in detected_faces:
         x, y, w, h = face.box
-        # Expand crop margin slightly for PAD
-        pad_margin = 0.2
-        crop_x1 = max(0, int(x - w * pad_margin))
-        crop_y1 = max(0, int(y - h * pad_margin))
-        crop_x2 = min(pil_img.width, int(x + w * (1 + pad_margin)))
-        crop_y2 = min(pil_img.height, int(y + h * (1 + pad_margin)))
+        # Expand crop centered around face for PAD
+        pad_scale = 1.8
+        cx = x + w / 2.0
+        cy = y + h / 2.0
+        cw = w * pad_scale
+        ch = h * pad_scale
+        crop_x1 = max(0, int(cx - cw / 2.0))
+        crop_y1 = max(0, int(cy - ch / 2.0))
+        crop_x2 = min(pil_img.width, int(cx + cw / 2.0))
+        crop_y2 = min(pil_img.height, int(cy + ch / 2.0))
 
         if (crop_x2 - crop_x1) > 10 and (crop_y2 - crop_y1) > 10:
             face_crop = pil_img.crop((crop_x1, crop_y1, crop_x2, crop_y2))
             pad_outcome, pad_score = pad_detector.predict(face_crop)
         else:
             pad_outcome, pad_score = PadOutcome.UNCERTAIN, 0.0
+
+        norm_lm = [
+            LandmarkPoint(
+                x=float(lx / pil_img.width),
+                y=float(ly / pil_img.height),
+            )
+            for lx, ly in face.landmarks
+        ]
 
         live_faces.append(
             LiveFaceDetection(
@@ -254,6 +289,7 @@ async def analyze_live_frame(frame: UploadFile = File(...)):
                 pad_outcome=pad_outcome,
                 pad_score=pad_score,
                 landmarks=[LandmarkPoint(x=lx, y=ly) for lx, ly in face.landmarks],
+                norm_landmarks=norm_lm,
             )
         )
 
@@ -313,12 +349,16 @@ async def submit_verification(
         )
 
     # 3. Model readiness gate check (fail-closed)
-    detector_ready, det_detail = _inspect_model_readiness(settings.DETECTOR_MODEL_PATH, True)
+    detector_ready, det_detail = _inspect_model_readiness(
+        settings.DETECTOR_MODEL_PATH, True, detector.is_loaded
+    )
     pad_ready, pad_detail = _inspect_model_readiness(
-        settings.PAD_MODEL_PATH, settings.PAD_MODEL_APPROVED
+        settings.PAD_MODEL_PATH, settings.PAD_MODEL_APPROVED, pad_detector.is_loaded
     )
     embedding_ready, embedding_detail = _inspect_model_readiness(
-        settings.EMBEDDING_MODEL_PATH, settings.EMBEDDING_MODEL_APPROVED
+        settings.EMBEDDING_MODEL_PATH,
+        settings.EMBEDDING_MODEL_APPROVED,
+        embedding_provider.is_loaded,
     )
 
     if not detector_ready or not pad_ready or not embedding_ready:
@@ -376,20 +416,32 @@ async def submit_verification(
         primary_face = detected[0]
         x, y, w, h = primary_face.box
 
-        pad_margin = 0.2
-        cx1 = max(0, int(x - w * pad_margin))
-        cy1 = max(0, int(y - h * pad_margin))
-        cx2 = min(img.width, int(x + w * (1 + pad_margin)))
-        cy2 = min(img.height, int(y + h * (1 + pad_margin)))
-        face_crop = img.crop((cx1, cy1, cx2, cy2))
+        pad_scale = 1.8
+        cx = x + w / 2.0
+        cy = y + h / 2.0
+        cw = w * pad_scale
+        ch = h * pad_scale
+        cx1 = max(0, int(cx - cw / 2.0))
+        cy1 = max(0, int(cy - ch / 2.0))
+        cx2 = min(img.width, int(cx + cw / 2.0))
+        cy2 = min(img.height, int(cy + ch / 2.0))
+        pad_crop = img.crop((cx1, cy1, cx2, cy2))
 
-        pad_outcome, pad_score = pad_detector.predict(face_crop)
+        pad_outcome, pad_score = pad_detector.predict(pad_crop)
         if pad_outcome == PadOutcome.SPOOF:
             pad_rejections += 1
             continue
 
-        # Extract embedding
-        emb = embedding_provider.embed(face_crop)
+        # Extract embedding from face crop
+        emb_crop = img.crop(
+            (
+                max(0, int(x)),
+                max(0, int(y)),
+                min(img.width, int(x + w)),
+                min(img.height, int(y + h)),
+            )
+        )
+        emb = embedding_provider.embed(emb_crop)
         extracted_embeddings.append(emb)
 
     if total_faces_detected == 0:

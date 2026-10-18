@@ -106,10 +106,10 @@ class YuNetDetector:
             xx1 = np.maximum(x1[i], x1[order[1:]])
             yy1 = np.maximum(y1[i], y1[order[1:]])
             xx2 = np.minimum(x2[i], x2[order[1:]])
-            y2 = np.minimum(y2[i], y2[order[1:]])
+            yy2 = np.minimum(y2[i], y2[order[1:]])
 
             w = np.maximum(0.0, xx2 - xx1)
-            h = np.maximum(0.0, y2 - yy1)
+            h = np.maximum(0.0, yy2 - yy1)
             inter = w * h
             union = areas[i] + areas[order[1:]] - inter
             ovr = np.where(union > 0, inter / (union + 1e-6), 0.0)

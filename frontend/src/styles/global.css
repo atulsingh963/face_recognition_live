@@ -326,8 +326,14 @@ body {
   position: absolute;
   inset: 0;
   pointer-events: none;
+  overflow: hidden;
+}
+
+.face-guide-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
   display: flex;
-  flex-direction: column;
   align-items: center;
   justify-content: center;
   padding: 1rem;

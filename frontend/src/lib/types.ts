@@ -73,6 +73,7 @@ export interface LiveFaceDetection {
   pad_outcome?: PadOutcome | null;
   pad_score?: number | null;
   landmarks: LandmarkPoint[];
+  norm_landmarks?: LandmarkPoint[];
 }
 
 export interface LiveFrameAnalysisResponse {
