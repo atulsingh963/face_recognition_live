@@ -55,18 +55,26 @@ def validate_roll_number(roll_number: str) -> bool:
     return bool(re.match(settings.ROLL_NUMBER_REGEX, norm))
 
 
-def check_rate_limit(key: str, max_attempts: int = 10, window_seconds: int = 60) -> bool:
+def is_rate_limited(key: str, max_attempts: int = 10, window_seconds: int = 60) -> bool:
     """Check whether a client has exceeded rate limits."""
     now = time.time()
     attempts = _login_attempts.get(key, [])
-    # Filter attempts within window
     valid_attempts = [t for t in attempts if now - t < window_seconds]
-    if len(valid_attempts) >= max_attempts:
-        _login_attempts[key] = valid_attempts
-        return False
-    valid_attempts.append(now)
     _login_attempts[key] = valid_attempts
-    return True
+    return len(valid_attempts) >= max_attempts
+
+
+def record_login_failure(key: str) -> None:
+    """Record an unauthenticated failed login attempt."""
+    now = time.time()
+    attempts = _login_attempts.get(key, [])
+    attempts.append(now)
+    _login_attempts[key] = attempts
+
+
+def reset_rate_limit(key: str) -> None:
+    """Clear failed attempts for a key upon successful authentication."""
+    _login_attempts.pop(key, None)
 
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:

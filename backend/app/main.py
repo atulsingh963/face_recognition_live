@@ -27,7 +27,9 @@ from app.auth.security import (
     normalize_roll_number,
     validate_roll_number,
     create_access_token,
-    check_rate_limit,
+    is_rate_limited,
+    record_login_failure,
+    reset_rate_limit,
     get_current_student,
 )
 from app.domain.models import (
@@ -307,7 +309,7 @@ def login_student(req: StudentLoginRequest, request: Request, db: Session = Depe
     client_ip = request.client.host if request.client else "unknown"
     rate_key = f"{client_ip}:{norm_roll}"
 
-    if not check_rate_limit(rate_key, max_attempts=10, window_seconds=60):
+    if is_rate_limited(rate_key, max_attempts=10, window_seconds=60):
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
             detail="Too many failed login attempts. Please wait 60 seconds before trying again.",
@@ -315,11 +317,15 @@ def login_student(req: StudentLoginRequest, request: Request, db: Session = Depe
 
     student = db.query(Student).filter(Student.roll_number == norm_roll, Student.is_active == True).first()
     if not student or not verify_password(req.password, student.password_hash):
+        record_login_failure(rate_key)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid roll number or password.",
             headers={"WWW-Authenticate": "Bearer"},
         )
+
+    # Reset rate limit counter on successful authentication
+    reset_rate_limit(rate_key)
 
     token = create_access_token(
         data={"sub": student.roll_number, "student_id": student.id},
@@ -645,7 +651,10 @@ async def verify_attendance(
         .first()
     )
     if recent_attendance:
-        mins_ago = int((now_utc - recent_attendance.timestamp).total_seconds() / 60)
+        rec_time = recent_attendance.timestamp
+        if rec_time.tzinfo is None:
+            rec_time = rec_time.replace(tzinfo=timezone.utc)
+        mins_ago = max(0, int((now_utc - rec_time).total_seconds() / 60))
         return DecisionResponse(
             request_id=request_id,
             decision=DecisionCode.RETRY_REQUIRED,
