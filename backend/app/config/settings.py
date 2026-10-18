@@ -1,6 +1,6 @@
 """Backend configuration and settings management."""
+
 from enum import Enum
-from pathlib import Path
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -11,11 +11,7 @@ class EnvironmentType(str, Enum):
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(
-        env_file=".env",
-        env_file_encoding="utf-8",
-        extra="ignore"
-    )
+    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
     # Server
     HOST: str = "127.0.0.1"

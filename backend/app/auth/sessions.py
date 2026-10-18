@@ -1,4 +1,5 @@
 """Challenge session management service enforcing single-use, TTL, and replay protection."""
+
 import secrets
 import time
 import uuid
@@ -8,7 +9,9 @@ from app.domain.models import LivenessAction
 
 
 class SessionRecord:
-    def __init__(self, session_id: str, actions: List[LivenessAction], server_nonce: str, expires_at: float):
+    def __init__(
+        self, session_id: str, actions: List[LivenessAction], server_nonce: str, expires_at: float
+    ):
         self.session_id = session_id
         self.actions = actions
         self.server_nonce = server_nonce
@@ -24,11 +27,16 @@ class ChallengeSessionManager:
         session_id = str(uuid.uuid4())
         server_nonce = secrets.token_hex(16)
         expires_at = time.time() + settings.CHALLENGE_SESSION_EXPIRE_SECONDS
-        
+
         # Select randomized non-repeating actions
-        all_actions = [LivenessAction.BLINK, LivenessAction.TURN_LEFT, LivenessAction.TURN_RIGHT, LivenessAction.SMILE]
+        all_actions = [
+            LivenessAction.BLINK,
+            LivenessAction.TURN_LEFT,
+            LivenessAction.TURN_RIGHT,
+            LivenessAction.SMILE,
+        ]
         selected_actions = secrets.SystemRandom().sample(all_actions, k=2)
-        
+
         record = SessionRecord(
             session_id=session_id,
             actions=selected_actions,
@@ -44,16 +52,16 @@ class ChallengeSessionManager:
         record = self._sessions.get(session_id)
         if not record:
             return False
-            
+
         if record.consumed:
             return False
-            
+
         if time.time() > record.expires_at:
             return False
-            
+
         if nonce and record.server_nonce != nonce:
             return False
-            
+
         # Atomically mark consumed to prevent replay
         record.consumed = True
         return True

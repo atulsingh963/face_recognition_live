@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { useCamera } from '../hooks/useCamera';
 import { CameraPanel } from '../components/CameraPanel';
 import { ChallengePanel } from '../components/ChallengePanel';
@@ -6,12 +6,14 @@ import { ResultPanel } from '../components/ResultPanel';
 import {
   createLivenessSession,
   submitVerificationEvidence,
+  analyzeLiveFrame,
   ApiError,
 } from '../lib/api';
 import type {
   ChallengeSessionCreateResponse,
   DecisionResponse,
   BackendSystemStatus,
+  LiveFrameAnalysisResponse,
 } from '../lib/types';
 
 interface VerificationPageProps {
@@ -28,8 +30,13 @@ export const VerificationPage: React.FC<VerificationPageProps> = ({ systemStatus
   const [lastDecision, setLastDecision] = useState<DecisionResponse | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
+  // Real-time live detection state
+  const [liveAnalysis, setLiveAnalysis] = useState<LiveFrameAnalysisResponse | null>(null);
+  const [isDetecting, setIsDetecting] = useState<boolean>(false);
+  const isAnalyzingRef = useRef<boolean>(false);
+
   // Stop camera when unmounting verification page
-  const stopCameraRef = React.useRef(camera.stopCamera);
+  const stopCameraRef = useRef(camera.stopCamera);
   useEffect(() => {
     stopCameraRef.current = camera.stopCamera;
   }, [camera.stopCamera]);
@@ -39,6 +46,46 @@ export const VerificationPage: React.FC<VerificationPageProps> = ({ systemStatus
       stopCameraRef.current();
     };
   }, []);
+
+  // Periodic real-time frame inference loop when camera is active
+  useEffect(() => {
+    if (!camera.isActive || systemStatus.connection !== 'connected') {
+      setLiveAnalysis(null);
+      setIsDetecting(false);
+      return;
+    }
+
+    let isSubscribed = true;
+    setIsDetecting(true);
+
+    const intervalId = setInterval(async () => {
+      if (isAnalyzingRef.current || !isSubscribed) return;
+
+      isAnalyzingRef.current = true;
+      try {
+        const frameBlob = await camera.captureFrame();
+        if (frameBlob && isSubscribed) {
+          const analysis = await analyzeLiveFrame(frameBlob);
+          if (isSubscribed) {
+            setLiveAnalysis(analysis);
+          }
+        }
+      } catch (err: unknown) {
+        // Suppress transient streaming drops quietly in background
+        if (import.meta.env.DEV) {
+          console.debug('Live frame analysis tick error:', err);
+        }
+      } finally {
+        isAnalyzingRef.current = false;
+      }
+    }, 400); // 2.5 FPS real-time feedback loop
+
+    return () => {
+      isSubscribed = false;
+      clearInterval(intervalId);
+      setIsDetecting(false);
+    };
+  }, [camera.isActive, camera.captureFrame, systemStatus.connection]);
 
   const handleStartSession = useCallback(async () => {
     setIsLoadingSession(true);
@@ -105,13 +152,7 @@ export const VerificationPage: React.FC<VerificationPageProps> = ({ systemStatus
       setLastDecision(result);
     } catch (err: unknown) {
       if (err instanceof ApiError) {
-        if (err.status === 404 || err.status === 405 || err.status === 501) {
-          setErrorMessage(
-            `Inference endpoint (/v1/verifications) is not currently implemented on the backend. Challenge session creation, action sequence generation, and anti-replay nonce tracking are working as designed. Biometric inference requires backend inference route implementation.`
-          );
-        } else {
-          setErrorMessage(`Verification error (HTTP ${err.status}): ${err.message}`);
-        }
+        setErrorMessage(`Verification error (HTTP ${err.status}): ${err.message}`);
       } else {
         setErrorMessage(
           err instanceof Error ? err.message : 'Failed to communicate with verification endpoint.'
@@ -131,14 +172,14 @@ export const VerificationPage: React.FC<VerificationPageProps> = ({ systemStatus
           Live Verification Console
         </h2>
         <p style={{ color: 'var(--text-secondary)', marginTop: '0.25rem' }}>
-          Interactive challenge-response liveness verification using browser MediaDevices and backend control-plane sessions.
+          Interactive challenge-response liveness verification with real-time YuNet detection, MiniFASNet PAD, and ArcFace biometric evaluation.
         </p>
       </div>
 
       {isBackendOffline && (
         <div className="alert alert-error" style={{ marginBottom: '1.5rem' }}>
           <span>
-            <strong>Backend Unreachable:</strong> The backend is currently offline. Start the FastAPI server on 127.0.0.1:8000 to enable challenge session generation.
+            <strong>Backend Unreachable:</strong> The backend is currently offline. Start the FastAPI server on 127.0.0.1:8000 to enable real-time inference and challenge sessions.
           </span>
         </div>
       )}
@@ -156,6 +197,8 @@ export const VerificationPage: React.FC<VerificationPageProps> = ({ systemStatus
             onCaptureFrame={camera.isActive && session ? handleCaptureFrame : undefined}
             isCapturing={isCapturing}
             capturedCount={capturedFrames.length}
+            liveAnalysis={liveAnalysis}
+            isDetecting={isDetecting}
           />
         </div>
 

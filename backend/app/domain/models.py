@@ -1,7 +1,8 @@
 """Domain entities, enums, and schemas for face recognition and liveness."""
+
 from enum import Enum
 from typing import List, Optional
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 
 class LivenessAction(str, Enum):
@@ -50,3 +51,38 @@ class DecisionResponse(BaseModel):
     matched_person_id: Optional[str] = None
     similarity_score: Optional[float] = None
     message: str
+
+
+class BoundingBox(BaseModel):
+    x: float
+    y: float
+    width: float
+    height: float
+
+
+class NormalizedBoundingBox(BaseModel):
+    x: float
+    y: float
+    width: float
+    height: float
+
+
+class LandmarkPoint(BaseModel):
+    x: float
+    y: float
+
+
+class LiveFaceDetection(BaseModel):
+    bbox: BoundingBox
+    norm_bbox: NormalizedBoundingBox
+    score: float
+    pad_outcome: Optional[PadOutcome] = None
+    pad_score: Optional[float] = None
+    landmarks: List[LandmarkPoint] = []
+
+
+class LiveFrameAnalysisResponse(BaseModel):
+    face_count: int
+    faces: List[LiveFaceDetection]
+    model_ready: bool
+    timestamp_ms: float

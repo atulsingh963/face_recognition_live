@@ -39,9 +39,47 @@ export interface ReadinessResponse {
   pad_model_approved: boolean;
   embedding_model_approved: boolean;
   ready_for_inference: boolean;
+  detector_model?: ModelReadinessDetail | null;
   pad_model?: ModelReadinessDetail | null;
   embedding_model?: ModelReadinessDetail | null;
   providers?: string[];
+}
+
+export type PadOutcome = 'REAL' | 'SPOOF' | 'UNCERTAIN' | 'ERROR';
+
+export interface BoundingBox {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+export interface NormalizedBoundingBox {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+export interface LandmarkPoint {
+  x: number;
+  y: number;
+}
+
+export interface LiveFaceDetection {
+  bbox: { x: number; y: number; width: number; height: number };
+  norm_bbox: NormalizedBoundingBox;
+  score: number;
+  pad_outcome?: PadOutcome | null;
+  pad_score?: number | null;
+  landmarks: LandmarkPoint[];
+}
+
+export interface LiveFrameAnalysisResponse {
+  face_count: number;
+  faces: LiveFaceDetection[];
+  model_ready: boolean;
+  timestamp_ms: number;
 }
 
 export interface ChallengeSessionCreateResponse {

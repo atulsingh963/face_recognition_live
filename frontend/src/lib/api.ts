@@ -4,6 +4,7 @@ import type {
   ReadinessResponse,
   ChallengeSessionCreateResponse,
   DecisionResponse,
+  LiveFrameAnalysisResponse,
 } from './types';
 
 export class ApiError extends Error {
@@ -129,4 +130,17 @@ export async function submitVerificationEvidence(
     method: 'POST',
     body: formData,
   });
+}
+
+/**
+ * Send a live preview frame from the camera to the backend for real-time YuNet detection & MiniFASNet PAD.
+ */
+export async function analyzeLiveFrame(frame: Blob): Promise<LiveFrameAnalysisResponse> {
+  const formData = new FormData();
+  formData.append('frame', frame, 'live_preview.jpg');
+
+  return request<LiveFrameAnalysisResponse>('/v1/live-detection', {
+    method: 'POST',
+    body: formData,
+  }, 3000);
 }
