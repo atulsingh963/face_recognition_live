@@ -87,3 +87,59 @@ class LiveFrameAnalysisResponse(BaseModel):
     faces: List[LiveFaceDetection]
     model_ready: bool
     timestamp_ms: float
+
+
+# Auth & Student Schemas
+class StudentRegisterRequest(BaseModel):
+    first_name: str
+    last_name: str
+    roll_number: str
+    password: str
+    confirm_password: str
+
+
+class StudentLoginRequest(BaseModel):
+    roll_number: str
+    password: str
+
+
+class TokenResponse(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+    expires_in_minutes: int
+    roll_number: str
+    first_name: str
+    last_name: str
+    is_enrolled: bool
+
+
+class StudentProfileResponse(BaseModel):
+    id: int
+    roll_number: str
+    first_name: str
+    last_name: str
+    is_enrolled: bool
+    is_active: bool
+    created_at: str
+
+
+class BiometricEnrollmentResponse(BaseModel):
+    success: bool
+    message: str
+    is_enrolled: bool
+    sample_quality_score: float
+
+
+class AttendanceRecordResponse(BaseModel):
+    id: int
+    timestamp: str
+    status: str
+    similarity_score: float
+    liveness_score: float
+    device_info: Optional[str] = None
+
+
+class AttendanceHistoryResponse(BaseModel):
+    total_records: int
+    records: List[AttendanceRecordResponse]
+
