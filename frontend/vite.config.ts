@@ -7,7 +7,18 @@ export default defineConfig({
   server: {
     host: '0.0.0.0',
     allowedHosts: [
-      'computing-till-jersey-standards.trycloudflare.com'
-    ]
-  }
+      'computing-till-jersey-standards.trycloudflare.com',
+      '.trycloudflare.com',
+    ],
+    proxy: {
+      '/health': {
+        target: 'http://127.0.0.1:8000',
+        changeOrigin: true,
+      },
+      '/v1': {
+        target: 'http://127.0.0.1:8000',
+        changeOrigin: true,
+      },
+    },
+  },
 })

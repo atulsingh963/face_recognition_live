@@ -70,7 +70,13 @@ async function request<T>(endpoint: string, options: RequestInit = {}, timeoutMs
     if (err instanceof DOMException && err.name === 'AbortError') {
       throw new ApiError(`Request timeout after ${timeoutMs}ms: ${url}`, 408);
     }
-    if (err instanceof TypeError && err.message.toLowerCase().includes('failed to fetch')) {
+    const isNetworkError =
+      err instanceof TypeError ||
+      (err instanceof Error &&
+        (err.message.toLowerCase().includes('fetch') ||
+          err.message.toLowerCase().includes('network') ||
+          err.message.toLowerCase().includes('load failed')));
+    if (isNetworkError) {
       throw new ApiError(
         `Unable to connect to backend at ${API_BASE_URL}. Ensure FastAPI is running on ${API_BASE_URL} and CORS is enabled.`,
         0

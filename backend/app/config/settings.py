@@ -21,9 +21,15 @@ class Settings(BaseSettings):
     CORS_ORIGINS: list[str] = [
         "http://127.0.0.1:5173",
         "http://localhost:5173",
+        "http://127.0.0.1:4173",
+        "http://localhost:4173",
+        "http://127.0.0.1:3000",
+        "http://localhost:3000",
+        "https://computing-till-jersey-standards.trycloudflare.com",
         "https://ride-volvo-hughes-desirable.trycloudflare.com",
         "https://islamic-coordinator-configured-eagles.trycloudflare.com",
     ]
+    CORS_ORIGIN_REGEX: str | None = r"^https?:\/\/(localhost|127\.0\.0\.1|192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+|.*\.trycloudflare\.com)(:\d+)?$"
 
     # Auth & Tokens
     SECRET_KEY: str = "insecure_dev_key_must_be_changed_in_env_file"

@@ -39,6 +39,9 @@ venv.bak/
 .env
 .env.local
 .env.*.local
+!frontend/.env
+!frontend/.env.example
+!backend/.env.example
 *.pem
 *.key
 *.cert
