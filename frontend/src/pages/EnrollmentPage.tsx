@@ -38,6 +38,8 @@ export const EnrollmentPage: React.FC<EnrollmentPageProps> = ({
   const [guidanceTip, setGuidanceTip] = useState<string>('Grant consent to start face enrollment.');
   const [isQualityGood, setIsQualityGood] = useState(false);
 
+  const [autoCapturePaused, setAutoCapturePaused] = useState(false);
+
   const isAnalyzingRef = useRef(false);
   const isCapturingRef = useRef(false);
   const lastCaptureTimeRef = useRef<number>(0);
@@ -120,6 +122,12 @@ export const EnrollmentPage: React.FC<EnrollmentPageProps> = ({
       } else {
         setGuidanceTip('Camera stopped. Click Start Camera to resume.');
       }
+      setIsQualityGood(false);
+      return;
+    }
+
+    if (errorMessage || autoCapturePaused) {
+      setGuidanceTip('Enrollment paused due to quality/validation error. Review instructions and click "Try Again".');
       setIsQualityGood(false);
       return;
     }
@@ -207,6 +215,8 @@ export const EnrollmentPage: React.FC<EnrollmentPageProps> = ({
     const now = Date.now();
     if (
       autoCaptureEnabled &&
+      !autoCapturePaused &&
+      !errorMessage &&
       capturedFrames.length < REQUIRED_FRAMES_COUNT &&
       !isCapturingRef.current &&
       now - lastCaptureTimeRef.current >= COOLDOWN_BETWEEN_CAPTURES_MS
@@ -238,6 +248,8 @@ export const EnrollmentPage: React.FC<EnrollmentPageProps> = ({
     capturedFrames.length,
     liveAnalysis,
     autoCaptureEnabled,
+    autoCapturePaused,
+    errorMessage,
   ]);
 
   // Submit enrollment implementation
@@ -264,11 +276,17 @@ export const EnrollmentPage: React.FC<EnrollmentPageProps> = ({
         onEnrollmentComplete();
       } catch (err: unknown) {
         autoSubmittedRef.current = false;
+        // Pause auto-capture and clear frames so the user can adjust camera/lighting
+        setAutoCapturePaused(true);
+        setCapturedFrames([]);
+
+        let message = 'Failed to enroll biometric template.';
         if (err instanceof ApiError) {
-          setErrorMessage(err.message);
-        } else {
-          setErrorMessage('Failed to enroll biometric template.');
+          message = err.message;
+        } else if (err instanceof Error) {
+          message = err.message;
         }
+        setErrorMessage(message);
       } finally {
         setIsSubmitting(false);
       }
@@ -282,12 +300,14 @@ export const EnrollmentPage: React.FC<EnrollmentPageProps> = ({
       capturedFrames.length >= REQUIRED_FRAMES_COUNT &&
       !isSubmitting &&
       !autoSubmittedRef.current &&
+      !autoCapturePaused &&
+      !errorMessage &&
       consentGiven
     ) {
       autoSubmittedRef.current = true;
       void submitEnrollment(capturedFrames);
     }
-  }, [capturedFrames, isSubmitting, consentGiven, submitEnrollment]);
+  }, [capturedFrames, isSubmitting, consentGiven, autoCapturePaused, errorMessage, submitEnrollment]);
 
   // Manual capture fallback
   const handleCaptureFrame = useCallback(async () => {
@@ -305,9 +325,14 @@ export const EnrollmentPage: React.FC<EnrollmentPageProps> = ({
 
   const handleResetFrames = () => {
     autoSubmittedRef.current = false;
+    setAutoCapturePaused(false);
     setCapturedFrames([]);
     setErrorMessage(null);
     setStatusMessage(null);
+  };
+
+  const handleDismissError = () => {
+    setErrorMessage(null);
   };
 
   const handleRevoke = async () => {
@@ -344,23 +369,87 @@ export const EnrollmentPage: React.FC<EnrollmentPageProps> = ({
         </p>
       </div>
 
+      {/* Dedicated Stable Feedback Container */}
       {errorMessage && (
-        <div className="alert alert-error" style={{ marginBottom: '1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <span>{errorMessage}</span>
-          <button
-            type="button"
-            className="btn btn-secondary"
-            onClick={handleResetFrames}
-            style={{ padding: '0.25rem 0.6rem', fontSize: '0.75rem', marginLeft: '1rem' }}
+        <div className="enrollment-feedback-banner enrollment-feedback-error">
+          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '1rem' }}>
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.75rem' }}>
+              <span
+                style={{
+                  color: 'var(--accent-rose)',
+                  fontSize: '1.25rem',
+                  lineHeight: '1.2',
+                  userSelect: 'none',
+                }}
+              >
+                ⚠️
+              </span>
+              <div>
+                <strong style={{ color: '#fca5a5', fontSize: '0.9rem', display: 'block', marginBottom: '0.25rem' }}>
+                  Enrollment Verification Failed
+                </strong>
+                <p style={{ color: 'var(--text-primary)', fontSize: '0.85rem', lineHeight: '1.5', margin: 0 }}>
+                  {errorMessage}
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={handleDismissError}
+              aria-label="Dismiss error"
+              style={{
+                background: 'transparent',
+                border: 'none',
+                color: 'var(--text-muted)',
+                cursor: 'pointer',
+                fontSize: '1.1rem',
+                padding: '0.1rem 0.4rem',
+                lineHeight: 1,
+              }}
+            >
+              ×
+            </button>
+          </div>
+
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              paddingTop: '0.5rem',
+              borderTop: '1px solid rgba(239, 68, 68, 0.2)',
+              marginTop: '0.25rem',
+              flexWrap: 'wrap',
+              gap: '0.5rem',
+            }}
           >
-            Retry Capture
-          </button>
+            <span style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
+              Auto-capture is paused so you can adjust your position and lighting.
+            </span>
+            <div style={{ display: 'flex', gap: '0.5rem' }}>
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={handleResetFrames}
+                style={{ padding: '0.35rem 0.85rem', fontSize: '0.8rem' }}
+              >
+                ↻ Try Again
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
       {statusMessage && (
-        <div className="alert alert-ready" style={{ marginBottom: '1rem' }}>
-          {statusMessage}
+        <div className="enrollment-feedback-banner enrollment-feedback-success">
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+            <span style={{ color: 'var(--accent-emerald)', fontSize: '1.2rem', lineHeight: 1 }}>
+              ✓
+            </span>
+            <span style={{ color: 'var(--text-primary)', fontSize: '0.85rem', fontWeight: 500 }}>
+              {statusMessage}
+            </span>
+          </div>
         </div>
       )}
 
@@ -373,16 +462,36 @@ export const EnrollmentPage: React.FC<EnrollmentPageProps> = ({
           padding: '0.75rem 1rem',
           borderRadius: '8px',
           marginBottom: '1rem',
-          backgroundColor: isQualityGood ? 'rgba(16, 185, 129, 0.12)' : 'rgba(59, 130, 246, 0.12)',
-          border: `1px solid ${isQualityGood ? 'rgba(16, 185, 129, 0.35)' : 'rgba(59, 130, 246, 0.3)'}`,
+          backgroundColor: errorMessage
+            ? 'rgba(239, 68, 68, 0.08)'
+            : isQualityGood
+            ? 'rgba(16, 185, 129, 0.12)'
+            : 'rgba(59, 130, 246, 0.12)',
+          border: `1px solid ${
+            errorMessage
+              ? 'rgba(239, 68, 68, 0.25)'
+              : isQualityGood
+              ? 'rgba(16, 185, 129, 0.35)'
+              : 'rgba(59, 130, 246, 0.3)'
+          }`,
           transition: 'all 0.2s ease',
         }}
       >
         <span
           className="status-dot"
           style={{
-            backgroundColor: isQualityGood ? 'var(--accent-emerald)' : 'var(--accent-blue)',
-            boxShadow: `0 0 8px ${isQualityGood ? 'var(--accent-emerald)' : 'var(--accent-blue)'}`,
+            backgroundColor: errorMessage
+              ? 'var(--accent-rose)'
+              : isQualityGood
+              ? 'var(--accent-emerald)'
+              : 'var(--accent-blue)',
+            boxShadow: `0 0 8px ${
+              errorMessage
+                ? 'var(--accent-rose)'
+                : isQualityGood
+                ? 'var(--accent-emerald)'
+                : 'var(--accent-blue)'
+            }`,
           }}
         />
         <div style={{ flex: 1, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem' }}>

@@ -50,7 +50,19 @@ async function request<T>(endpoint: string, options: RequestInit = {}, timeoutMs
       try {
         errorBody = await response.json();
         if (typeof errorBody === 'object' && errorBody !== null && 'detail' in errorBody) {
-          errorText = String((errorBody as { detail: unknown }).detail);
+          const detailVal = (errorBody as { detail: unknown }).detail;
+          if (typeof detailVal === 'string') {
+            errorText = detailVal;
+          } else if (Array.isArray(detailVal)) {
+            // FastAPI validation error list: [{ loc, msg, type }]
+            errorText = detailVal
+              .map((item) => (typeof item === 'object' && item !== null && 'msg' in item ? String(item.msg) : JSON.stringify(item)))
+              .join('; ');
+          } else {
+            errorText = JSON.stringify(detailVal);
+          }
+        } else if (typeof errorBody === 'object' && errorBody !== null && 'message' in errorBody) {
+          errorText = String((errorBody as { message: unknown }).message);
         }
       } catch {
         errorText = await response.text().catch(() => '');
